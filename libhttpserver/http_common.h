@@ -31,6 +31,15 @@ struct HTTPMessage
     std::string body;
 
     HTTPMessage();
+
+    
+    std::string getQuery(const std::string& key, const std::string& defaultValue = "") const;
+    bool hasQuery(const std::string& key) const;
+    std::string getHeader(const std::string& key, const std::string& defaultValue = "") const;
+    bool hasHeader(const std::string& key) const;
 };
+
+
+std::string urlDecode(const std::string& str);
 
 #endif //FLEET_HTTP_COMMON_H

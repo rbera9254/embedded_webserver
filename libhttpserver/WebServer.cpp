@@ -208,55 +208,48 @@ void WebServer::handle_request(boost::beast::http::request<Body, boost::beast::h
     }
 
     message.body = req.body();
-    sstr.str(std::string());
-    sstr << req.target();
-
-    std::string target_path = sstr.str();
+    std::string target_full = std::string(req.target());
+    std::string target_path = target_full;
     std::string query_string;
-    boost::escaped_list_separator<char> query_separator("", "?", "\"\'");
-    boost::escaped_list_separator<char> query_param_separator("", "&", "\"\'");
-    boost::escaped_list_separator<char> key_separator("", "=", "\"\'");
-    boost::tokenizer<boost::escaped_list_separator<char>> url_tokens(target_path, query_separator);
 
-    bool target_reset = true;
-
-    for(const auto& it : url_tokens)
+    size_t qmark_pos = target_full.find('?');
+    if (qmark_pos != std::string::npos)
     {
-        if (target_reset) {
-            target_path = it;
-            target_reset = false;
-        }
-        else
-            query_string = it;
+        target_path = target_full.substr(0, qmark_pos);
+        query_string = target_full.substr(qmark_pos + 1);
     }
 
-    boost::tokenizer<boost::escaped_list_separator<char>> query_tokens(query_string, query_param_separator);
-    for(const auto& it: query_tokens)
+    if (!query_string.empty())
     {
-        // Here, we will get a key-value pair in each step. We can split that, and populate HTTPMessage::populate
-        bool isKey = true;
-        std::string key, value;
-        boost::tokenizer<boost::escaped_list_separator<char>> key_value(it, key_separator);
-        for(const auto& token : key_value)
+        std::stringstream ss(query_string);
+        std::string item;
+        while (std::getline(ss, item, '&'))
         {
-            if (isKey)
+            if (item.empty()) continue;
+            size_t eq_pos = item.find('=');
+            if (eq_pos != std::string::npos)
             {
-                key = token;
-                isKey = false;
+                std::string key = urlDecode(item.substr(0, eq_pos));
+                std::string value = urlDecode(item.substr(eq_pos + 1));
+                if (!key.empty())
+                {
+                    message.query[key] = value;
+                }
             }
             else
             {
-                value = token;
+                std::string key = urlDecode(item);
+                if (!key.empty())
+                {
+                    message.query[key] = "";
+                }
             }
         }
-
-        message.query[key] = value;
     }
 
-    //auto _connection = pool->GetConnection();
-    //HTTPMessage reply = this->operator[](target_path)(message, _connection);
+    
     HTTPMessage reply = this->router.run(target_path, message);
-    //pool->ReturnConnection(_connection);
+
 
     http::response<http::string_body> res{reply.status, req.version()};
 
